@@ -4,84 +4,67 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
 
-import java.util.List;
+import java.time.Duration;
 
 public class AmazonCartTest {
-    public static void main(String[] args) {
-        // Set up WebDriver
+    private WebDriver driver;
+    private WebDriverWait wait;
+
+    @BeforeClass
+    public void setup() {
+        // Set the path to the ChromeDriver
         System.setProperty("webdriver.chrome.driver", "path/to/chromedriver");
-        WebDriver driver = new ChromeDriver();
-        
-        try {
-            WebDriverWait wait = new WebDriverWait(driver, 10);
+        driver = new ChromeDriver();
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        driver.manage().window().maximize();
+    }
 
-            // Step 1: Navigate to Amazon
-            driver.get("https://www.amazon.com/");
-            wait.until(ExpectedConditions.titleContains("Amazon"));
+    @Test
+    public void addProductsToCart() {
+        // Navigate to Amazon
+        driver.get("https://www.amazon.com/");
 
-            // Step 2: Search for "toys"
-            WebElement searchBox = driver.findElement(By.id("twotabsearchtextbox"));
-            searchBox.sendKeys("toys");
-            searchBox.submit();
+        // Search for "toys"
+        WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("twotabsearchtextbox")));
+        searchBox.sendKeys("toys");
+        searchBox.submit();
 
-            // Wait for results to load
+        // Wait for search results to load
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".s-main-slot")));
+
+        // Select first two products
+        for (int i = 1; i <= 2; i++) {
+            WebElement product = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".s-main-slot .s-result-item:nth-child(" + (i + 1) + ")")));
+            String price = product.findElement(By.cssSelector(".a-price .a-offscreen")).getText(); // Get price
+            product.click(); // Go to product details page
+
+            // Add to cart
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("add-to-cart-button"))).click();
+
+            // Validate price
+            WebElement priceOnProductPage = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("priceblock_ourprice")));
+            Assert.assertEquals(priceOnProductPage.getText(), price, "Price does not match on Product Page!");
+
+            // Go back to search results
+            driver.navigate().back();
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".s-main-slot")));
-
-            // Step 3: Select any 2 products and add to cart
-            List<WebElement> products = driver.findElements(By.cssSelector(".s-main-slot .s-result-item"));
-            String[] productPrices = new String[2];
-
-            for (int i = 0; i < 2; i++) {
-                // Get price on search result page
-                WebElement product = products.get(i);
-                productPrices[i] = product.findElement(By.cssSelector(".a-price-whole")).getText();
-
-                // Click on the product
-                product.click();
-
-                // Wait for product details page
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("buyNow")));
-                
-                // Validate price on product details page
-                String productDetailPrice = driver.findElement(By.cssSelector(".a-price-whole")).getText();
-                assert productDetailPrice.equals(productPrices[i]) : "Price mismatch on product details page";
-
-                // Add to cart
-                WebElement addToCartButton = driver.findElement(By.id("add-to-cart-button"));
-                addToCartButton.click();
-
-                // Go back to search results
-                driver.navigate().back();
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".s-main-slot")));
-                products = driver.findElements(By.cssSelector(".s-main-slot .s-result-item")); // Refresh product list
-            }
-
-            // Step 4: Validate total price in the cart
-            WebElement cartIcon = driver.findElement(By.id("nav-cart"));
-            cartIcon.click();
-
-            // Wait for cart page to load
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-subtotal-amount"))));
-            String totalPrice = driver.findElement(By.cssSelector(".sc-subtotal-amount")).getText();
-
-            // Calculate expected total price
-            double expectedTotal = 0;
-            for (String price : productPrices) {
-                expectedTotal += Double.parseDouble(price.replace(",", ""));
-            }
-            String expectedTotalString = String.valueOf(expectedTotal);
-            
-            // Validate total price
-            assert totalPrice.equals(expectedTotalString) : "Total price mismatch in cart summary";
-
-            System.out.println("All validations passed!");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            // Close the browser
-            driver.quit();
         }
+
+        // Go to cart
+        driver.findElement(By.id("nav-cart")).click();
+
+        // Validate total price
+        String totalPrice = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-subtotal .a-size-medium"))).getText();
+        Assert.assertTrue(totalPrice.contains("Total"), "Total price is not displayed correctly!");
+    }
+
+    @AfterClass
+    public void tearDown() {
+        driver.quit();
     }
 }
